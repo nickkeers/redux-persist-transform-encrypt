@@ -1,34 +1,15 @@
-# redux-persist-transform-encrypt
-
-[![npm](https://img.shields.io/npm/v/redux-persist-transform-encrypt.svg?maxAge=3600)](https://www.npmjs.com/package/redux-persist-transform-encrypt)
-[![CI](https://github.com/maxdeviant/redux-persist-transform-encrypt/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/maxdeviant/redux-persist-transform-encrypt/actions/workflows/ci.yml)
+# @nickkeers/redux-persist-transform-encrypt
 
 Encrypt your Redux store.
 
-## Maintenance notice
-
-As of February 2, 2024, I will longer be maintaining `redux-persist-transform-encrypt`.
-
-I have been supporting it as best I can these past few years, but the reality of it is I have not used `redux-persist-transform-encrypt`, `redux-persist`, or Redux since 2017.
-
-Since I no longer use any of the technologies involved and don't have a good way of testing any potential changes, I am no longer in a position where I feel I can maintain this package to my desired standards.
-
-Additionally, `redux-persist` as a project also seems dead, despite an attempted change in management.
+> **Note:** This is a fork of [maxdeviant/redux-persist-transform-encrypt](https://github.com/maxdeviant/redux-persist-transform-encrypt) with added support for custom crypto providers (e.g., `react-native-quick-crypto`).
 
 ## Installation
 
 `redux-persist-transform-encrypt` must be used in conjunction with `redux-persist`, so make sure you have that installed as well.
 
-#### Yarn
-
 ```sh
-yarn add redux-persist-transform-encrypt
-```
-
-#### npm
-
-```sh
-npm install redux-persist-transform-encrypt
+npm install @nickkeers/redux-persist-transform-encrypt
 ```
 
 ## Usage
@@ -37,7 +18,7 @@ npm install redux-persist-transform-encrypt
 
 ```js
 import { persistReducer } from 'redux-persist';
-import { encryptTransform } from 'redux-persist-transform-encrypt';
+import { encryptTransform } from '@nickkeers/redux-persist-transform-encrypt';
 
 const reducer = persistReducer(
   {
@@ -54,9 +35,39 @@ const reducer = persistReducer(
 );
 ```
 
-### Asynchronous
+### Custom Crypto Provider
 
-Asynchronous support was removed in v3.0.0, as it was never fully supported and is not able to be implemented correctly given the current constraints that `redux-persist` imposes on transforms. See [#48](https://github.com/maxdeviant/redux-persist-transform-encrypt/issues/48) for more details.
+You can provide a custom crypto provider to use a different encryption library (e.g., `react-native-quick-crypto` for React Native):
+
+```ts
+import { encryptTransform, CryptoProvider } from '@nickkeers/redux-persist-transform-encrypt';
+import Crypto from 'react-native-quick-crypto';
+
+const quickCryptoProvider: CryptoProvider = {
+  encrypt(plaintext: string, secretKey: string): string {
+    // Your encryption implementation
+    const cipher = Crypto.createCipheriv('aes-256-cbc', keyBuffer, ivBuffer);
+    return cipher.update(plaintext, 'utf8', 'base64') + cipher.final('base64');
+  },
+  decrypt(ciphertext: string, secretKey: string): string {
+    // Your decryption implementation
+    const decipher = Crypto.createDecipheriv('aes-256-cbc', keyBuffer, ivBuffer);
+    return decipher.update(ciphertext, 'base64', 'utf8') + decipher.final('utf8');
+  },
+};
+
+const reducer = persistReducer(
+  {
+    transforms: [
+      encryptTransform({
+        secretKey: 'my-super-secret-key',
+        cryptoProvider: quickCryptoProvider,
+      }),
+    ],
+  },
+  baseReducer
+);
+```
 
 ### Custom Error Handling
 

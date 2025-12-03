@@ -7,7 +7,7 @@ describe('sync', () => {
       expect(() =>
         encryptTransform(void 0 as any)
       ).toThrowErrorMatchingInlineSnapshot(
-        `"redux-persist-transform-encrypt: No configuration provided."`
+        `[Error: redux-persist-transform-encrypt: No configuration provided.]`
       );
     });
 
@@ -17,7 +17,7 @@ describe('sync', () => {
           secretKey: void 0 as any,
         })
       ).toThrowErrorMatchingInlineSnapshot(
-        `"redux-persist-transform-encrypt: No secret key provided."`
+        `[Error: redux-persist-transform-encrypt: No secret key provided.]`
       );
     });
   });
