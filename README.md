@@ -37,36 +37,132 @@ const reducer = persistReducer(
 
 ### Custom Crypto Provider
 
-You can provide a custom crypto provider to use a different encryption library (e.g., `react-native-quick-crypto` for React Native):
+You can provide a custom crypto provider to use a different encryption library (e.g., `react-native-quick-crypto` for React Native). I believe the below implementation is compatible with how the crypto-js provider works, but I recommend you also check like I did with tests in your app:
 
 ```ts
-import { encryptTransform, CryptoProvider } from '@nickkeers/redux-persist-transform-encrypt';
+/**
+ * Native crypto provider for redux-persist encryption.
+ * 
+ * Uses react-native-quick-crypto for native AES encryption,
+ * with backwards compatibility for data encrypted by crypto-js.
+ */
+import { CryptoProvider } from "@nhkeers/redux-persist-transform-encrypt";
 import Crypto from 'react-native-quick-crypto';
 
-const quickCryptoProvider: CryptoProvider = {
+/**
+ * OpenSSL EVP_BytesToKey implementation.
+ * This is the key derivation function used by crypto-js when you pass a string passphrase.
+ * It derives both key and IV from password + salt using MD5.
+ * 
+ * Algorithm:
+ * 1. D_i = MD5(D_{i-1} + password + salt)  (D_0 is empty)
+ * 2. Concatenate D_1, D_2, ... until we have enough bytes for key + IV
+ * 3. Key = first 32 bytes (AES-256), IV = next 16 bytes
+ */
+function evpBytesToKey(
+  password: string,
+  salt: Buffer,
+  keyLen: number = 32,
+  ivLen: number = 16
+): { key: Buffer; iv: Buffer } {
+  const totalLen = keyLen + ivLen;
+  const result: any[] = [];
+  let resultLen = 0;
+  let prev: any = Buffer.alloc(0);
+
+  while (resultLen < totalLen) {
+    // MD5(prev + password + salt)
+    const hash = Crypto.createHash('md5');
+    hash.update(prev);
+    hash.update(password, 'utf8');
+    hash.update(salt as any);
+    prev = hash.digest();
+    result.push(prev);
+    resultLen += prev.length;
+  }
+
+  const derived = Buffer.concat(result);
+  return {
+    key: derived.slice(0, keyLen) as unknown as Buffer,
+    iv: derived.slice(keyLen, keyLen + ivLen) as unknown as Buffer,
+  };
+}
+
+const OPENSSL_SALT_PREFIX = Buffer.from('Salted__', 'utf8');
+
+/**
+ * Native crypto provider using react-native-quick-crypto.
+ * 
+ * BACKWARDS COMPATIBLE with crypto-js:
+ * - Decrypt: Detects OpenSSL format ("Salted__" prefix) and uses EVP_BytesToKey
+ * - Encrypt: Uses OpenSSL-compatible format for consistency
+ * 
+ * Format: base64("Salted__" + salt_8bytes + ciphertext)
+ */
+export const quickCryptoProvider: CryptoProvider = {
   encrypt(plaintext: string, secretKey: string): string {
-    // Your encryption implementation
-    const cipher = Crypto.createCipheriv('aes-256-cbc', keyBuffer, ivBuffer);
-    return cipher.update(plaintext, 'utf8', 'base64') + cipher.final('base64');
+    try {
+      // Use OpenSSL-compatible format for consistency with existing data
+      // Generate random 8-byte salt (OpenSSL uses 8 bytes)
+      const salt = Crypto.randomBytes(8) as unknown as Buffer;
+      const { key, iv } = evpBytesToKey(secretKey, salt);
+      
+      const cipher = Crypto.createCipheriv('aes-256-cbc', key as any, iv as any);
+      const encryptedPart1 = cipher.update(plaintext, 'utf8');
+      const encryptedPart2 = cipher.final();
+      
+      // OpenSSL format: "Salted__" + salt + ciphertext
+      const result = Buffer.concat([
+        OPENSSL_SALT_PREFIX,
+        salt,
+        Buffer.from(encryptedPart1 as any),
+        Buffer.from(encryptedPart2 as any),
+      ]);
+      return result.toString('base64');
+    } catch (error) {
+      console.error('[quickCryptoProvider] encrypt error:', error);
+      throw error;
+    }
   },
+  
   decrypt(ciphertext: string, secretKey: string): string {
-    // Your decryption implementation
-    const decipher = Crypto.createDecipheriv('aes-256-cbc', keyBuffer, ivBuffer);
-    return decipher.update(ciphertext, 'base64', 'utf8') + decipher.final('utf8');
+    try {
+      const data = Buffer.from(ciphertext, 'base64');
+      
+      let salt: Buffer;
+      let encrypted: Buffer;
+      
+      // Check for OpenSSL format (crypto-js legacy data)
+      if (data.length > 16 && data.slice(0, 8).equals(OPENSSL_SALT_PREFIX)) {
+        // OpenSSL format: "Salted__" (8 bytes) + salt (8 bytes) + ciphertext
+        salt = data.slice(8, 16) as unknown as Buffer;
+        encrypted = data.slice(16) as unknown as Buffer;
+      } else {
+        // Should not happen with OpenSSL format, but handle gracefully
+        console.warn('[quickCryptoProvider] Unknown format, attempting legacy parse');
+        salt = data.slice(0, 8) as unknown as Buffer;
+        encrypted = data.slice(8) as unknown as Buffer;
+      }
+      
+      const { key, iv } = evpBytesToKey(secretKey, salt);
+      
+      const decipher = Crypto.createDecipheriv('aes-256-cbc', key as any, iv as any);
+      const decryptedPart1 = decipher.update(encrypted);
+      const decryptedPart2 = decipher.final();
+      
+      const decrypted = Buffer.concat([
+        Buffer.from(decryptedPart1 as any),
+        Buffer.from(decryptedPart2 as any),
+      ]);
+      
+      return decrypted.toString('utf8');
+    } catch (error) {
+      console.error('[quickCryptoProvider] decrypt error:', error);
+      console.error('[quickCryptoProvider] ciphertext preview:', ciphertext?.substring(0, 50));
+      throw error;
+    }
   },
 };
-
-const reducer = persistReducer(
-  {
-    transforms: [
-      encryptTransform({
-        secretKey: 'my-super-secret-key',
-        cryptoProvider: quickCryptoProvider,
-      }),
-    ],
-  },
-  baseReducer
-);
 ```
 
 ### Custom Error Handling
