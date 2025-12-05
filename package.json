@@ -1,6 +1,6 @@
 {
-  "name": "@nickkeers/redux-persist-transform-encrypt",
-  "version": "6.0.0",
+  "name": "@nhkeers/redux-persist-transform-encrypt",
+  "version": "6.0.1",
   "description": "Encrypt your Redux store.",
   "type": "module",
   "exports": {
@@ -32,9 +32,6 @@
     "url": "https://github.com/nickkeers/redux-persist-transform-encrypt/issues"
   },
   "homepage": "https://github.com/nickkeers/redux-persist-transform-encrypt#readme",
-  "publishConfig": {
-    "@nickkeers:registry": "https://npm.pkg.github.com"
-  },
   "files": [
     "lib/",
     "index.d.ts",

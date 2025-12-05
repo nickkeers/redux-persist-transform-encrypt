@@ -6,7 +6,6 @@
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "module": "nodenext",
-    "moduleResolution": "nodenext",
     "noImplicitReturns": true,
     "noUncheckedIndexedAccess": true,
     "noUnusedLocals": true,
