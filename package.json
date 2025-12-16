@@ -4,8 +4,10 @@
   "description": "Encrypt your Redux store.",
   "type": "module",
   "exports": {
-    "types": "./lib/index.d.ts",
-    "default": "./lib/index.js"
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    }
   },
   "scripts": {
     "prepublishOnly": "npm run build",
